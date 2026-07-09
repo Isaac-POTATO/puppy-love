@@ -410,7 +410,7 @@
 </audio>
 
 <!-- 🎵 音乐开关按钮（默认播放中） -->
-<button class="music-btn" id="musicBtn" onclick="toggleMusic()" title="点我关音乐~">🎶</button>
+<button class="music-btn off" id="musicBtn" onclick="toggleMusic()" title="点我放音乐~">🎵</button>
 
 <!-- 主卡片 -->
 <div class="main-card">
@@ -676,42 +676,68 @@
   // ====== 🎵 音乐控制 ======
   const bgMusic = document.getElementById('bgMusic');
   const musicBtn = document.getElementById('musicBtn');
-  let musicOn = true; // 默认播放中
+  let musicOn = false;
 
   function toggleMusic() {
     if (musicOn) {
       bgMusic.pause();
       musicBtn.textContent = '🎵';
       musicBtn.classList.add('off');
+      musicBtn.title = '点我放音乐~';
     } else {
-      bgMusic.play().catch(() => {});
-      musicBtn.textContent = '🎶';
+      musicBtn.textContent = '⏳';
       musicBtn.classList.remove('off');
+      bgMusic.play().then(function() {
+        musicOn = true;
+        musicBtn.textContent = '🎶';
+        musicBtn.title = '点我关音乐~';
+      }).catch(function() {
+        musicOn = false;
+        musicBtn.textContent = '🎵';
+        musicBtn.classList.add('off');
+        musicBtn.title = '点我放音乐~';
+      });
     }
     musicOn = !musicOn;
   }
 
-  // 🎵 页面渲染完成后自动播放（延迟加载，避免48MB音频阻塞页面渲染）
+  // 🎵 页面加载完成后后台预加载音频（避免48MB阻塞页面渲染，同时提前下载）
   window.addEventListener('load', function() {
     setTimeout(function() {
+      // 后台静默预加载音频文件（页面已渲染完毕，下载不阻塞 UI）
+      bgMusic.preload = 'auto';
+      bgMusic.load();
+
+      // 监听加载完成
+      bgMusic.addEventListener('canplaythrough', function() {
+        if (!musicOn) {
+          musicBtn.textContent = '🎵';
+          musicBtn.title = '点我放音乐~';
+        }
+      }, { once: true });
+
+      // 尝试自动播放（大多数浏览器会拦截，但 download 已经在后台开始了）
       bgMusic.play().then(function() {
         musicOn = true;
         musicBtn.textContent = '🎶';
         musicBtn.classList.remove('off');
+        musicBtn.title = '点我关音乐~';
       }).catch(function() {
-        // 浏览器拦截自动播放 → 首次点击时再试
+        // 浏览器拦截自动播放 → 首次点击任意位置时播放
         musicOn = false;
         musicBtn.textContent = '🎵';
         musicBtn.classList.add('off');
+        musicBtn.title = '点我放音乐~';
         document.addEventListener('click', function resumeOnClick() {
           bgMusic.play().then(function() {
             musicOn = true;
             musicBtn.textContent = '🎶';
             musicBtn.classList.remove('off');
+            musicBtn.title = '点我关音乐~';
           }).catch(function() {});
         }, { once: true });
       });
-    }, 300);
+    }, 500);
   });
 </script>
 
