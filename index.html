@@ -378,10 +378,9 @@
 <!-- 浮动爱心容器 -->
 <div class="hearts-container" id="heartsContainer"></div>
 
-<!-- 🎵 背景音乐 -->
-<audio id="bgMusic" loop preload="auto">
+<!-- 🎵 背景音乐（preload=none 避免阻塞页面渲染） -->
+<audio id="bgMusic" loop preload="none">
   <source src="bgm.mp4" type="video/mp4">
-  <source src="bgm.mp4" type="audio/mp4">
 </audio>
 
 <!-- 🎵 音乐开关按钮 -->
