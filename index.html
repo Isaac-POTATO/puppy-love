@@ -428,11 +428,12 @@
   });
 
   // ====== 点击"我才不要" → 随机逃跑 ======
-  const btnNo = document.getElementById('btnNo');
-  const btnYes = document.getElementById('btnYes');
+  const btnNo    = document.getElementById('btnNo');
+  const btnYes   = document.getElementById('btnYes');
   const btnGroup = document.getElementById('btnGroup');
+  const mainCard = document.querySelector('.main-card');
   let noClickCount = 0;
-  let btnYesPinned = false; // 标记「我要！」是否已被固定
+  let buttonsPinned = false; // 两个按钮是否都已脱离 flex 流
 
   // 逃跑俏皮话
   const teasingMessages = [
@@ -454,49 +455,54 @@
   function sayNo() {
     noClickCount++;
 
-    // === 第一次点击：固定「我要！」按钮，防止它因 flex 重新居中而移位 ===
-    if (!btnYesPinned) {
-      const yesInitRect = btnYes.getBoundingClientRect();
-      const groupInitRect = btnGroup.getBoundingClientRect();
+    // === 第一次点击：两个按钮都脱离 flex 流，相对于主卡片绝对定位 ===
+    if (!buttonsPinned) {
+      const cardRect = mainCard.getBoundingClientRect();
+
+      // 固定「我要！」
+      const yesRect = btnYes.getBoundingClientRect();
       btnYes.style.position = 'absolute';
-      btnYes.style.left = (yesInitRect.left - groupInitRect.left) + 'px';
-      btnYes.style.top  = (yesInitRect.top  - groupInitRect.top)  + 'px';
+      btnYes.style.left = (yesRect.left - cardRect.left) + 'px';
+      btnYes.style.top  = (yesRect.top  - cardRect.top)  + 'px';
       btnYes.style.margin = '0';
-      btnYesPinned = true;
+
+      // 「我才不要」也立刻绝对定位（保持原位）
+      const noRect0 = btnNo.getBoundingClientRect();
+      btnNo.style.position = 'absolute';
+      btnNo.style.left = (noRect0.left - cardRect.left) + 'px';
+      btnNo.style.top  = (noRect0.top  - cardRect.top)  + 'px';
+      btnNo.style.margin = '0';
+
+      buttonsPinned = true;
     }
 
-    // 让「我才不要」也脱离文档流（如果还没的话）
-    btnNo.style.position = 'absolute';
-    btnNo.style.margin = '0';
     btnNo.style.transition = 'all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)';
 
     // 读取当前各元素在视口中的位置
     const yesRect   = btnYes.getBoundingClientRect();
     const noRect    = btnNo.getBoundingClientRect();
-    const groupRect = btnGroup.getBoundingClientRect();
+    const cardRect  = mainCard.getBoundingClientRect();
 
     const noW = noRect.width;
     const noH = noRect.height;
     const SAFE = 35; // 安全距离（像素）
 
-    // 可用范围：btnGroup 内部
-    const areaLeft   = groupRect.left + 8;
-    const areaRight  = groupRect.right  - noW - 8;
-    const areaTop    = groupRect.top  + 8;
-    const areaBottom = groupRect.bottom - noH - 8;
+    // ✅ 可用范围：整个主卡片内部（远比 btnGroup 大，手机也够用）
+    const pad = 12;
+    const areaLeft   = cardRect.left + pad;
+    const areaRight  = cardRect.right  - noW - pad;
+    const areaTop    = cardRect.top  + pad;
+    const areaBottom = cardRect.bottom - noH - pad;
 
-    // 如果可用区域太小，放宽限制
-    const minX = Math.min(areaLeft, groupRect.left);
-    const maxX = Math.max(areaRight, groupRect.right - noW);
-    const minY = Math.min(areaTop, groupRect.top);
-    const maxY = Math.max(areaBottom, groupRect.bottom - noH);
+    const rangeX = Math.max(0, areaRight - areaLeft);
+    const rangeY = Math.max(0, areaBottom - areaTop);
 
     let bestX = null, bestY = null;
 
-    // 尝试 300 次随机找位
-    for (let i = 0; i < 300; i++) {
-      const cx = minX + Math.random() * Math.max(0, maxX - minX);
-      const cy = minY + Math.random() * Math.max(0, maxY - minY);
+    // 尝试 500 次随机找位（空间大了，更容易找到）
+    for (let i = 0; i < 500; i++) {
+      const cx = areaLeft + Math.random() * rangeX;
+      const cy = areaTop  + Math.random() * rangeY;
 
       const candidateRect = {
         left: cx, right: cx + noW,
@@ -510,30 +516,51 @@
       }
     }
 
-    // 如果随机都没找到 → 兜底：放在「我要！」的正上方或正下方
+    // 如果随机都没找到 → 四方向兜底
     if (bestX === null) {
-      // 尝试放在上方
-      const aboveY = yesRect.top - noH - SAFE;
-      if (aboveY >= groupRect.top) {
-        bestX = yesRect.left;
-        bestY = aboveY;
-      } else {
-        // 尝试放在下方
-        const belowY = yesRect.bottom + SAFE;
-        if (belowY + noH <= groupRect.bottom) {
-          bestX = yesRect.left;
-          bestY = belowY;
-        } else {
-          // 最后兜底：左上角
-          bestX = groupRect.left + 10;
-          bestY = groupRect.top + 10;
+      const opts = [];
+
+      // 上
+      if (yesRect.top - noH - SAFE >= cardRect.top) {
+        opts.push({ x: yesRect.left, y: yesRect.top - noH - SAFE });
+      }
+      // 下
+      if (yesRect.bottom + SAFE + noH <= cardRect.bottom) {
+        opts.push({ x: yesRect.left, y: yesRect.bottom + SAFE });
+      }
+      // 左
+      if (yesRect.left - noW - SAFE >= cardRect.left) {
+        opts.push({ x: yesRect.left - noW - SAFE, y: yesRect.top });
+      }
+      // 右
+      if (yesRect.right + SAFE + noW <= cardRect.right) {
+        opts.push({ x: yesRect.right + SAFE, y: yesRect.top });
+      }
+      // 左上角
+      opts.push({ x: cardRect.left + pad, y: cardRect.top + pad });
+      // 右下角
+      opts.push({ x: cardRect.right - noW - pad, y: cardRect.bottom - noH - pad });
+
+      // 选第一个不与 yes 重叠的
+      for (const opt of opts) {
+        const cr = { left: opt.x, right: opt.x + noW, top: opt.y, bottom: opt.y + noH };
+        if (!rectsOverlap(cr, yesRect, SAFE)) {
+          bestX = opt.x;
+          bestY = opt.y;
+          break;
         }
+      }
+
+      // 绝对兜底
+      if (bestX === null) {
+        bestX = cardRect.left + pad;
+        bestY = cardRect.top + pad;
       }
     }
 
-    // 转为相对于 btnGroup 的坐标
-    const deltaX = bestX - groupRect.left;
-    const deltaY = bestY - groupRect.top;
+    // 转为相对于主卡片的坐标
+    const deltaX = bestX - cardRect.left;
+    const deltaY = bestY - cardRect.top;
 
     btnNo.style.left = deltaX + 'px';
     btnNo.style.top  = deltaY + 'px';
