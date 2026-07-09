@@ -378,13 +378,13 @@
 <!-- 浮动爱心容器 -->
 <div class="hearts-container" id="heartsContainer"></div>
 
-<!-- 🎵 背景音乐（preload=none 避免阻塞页面渲染） -->
+<!-- 🎵 背景音乐（preload=none 防止48MB音频阻塞页面渲染） -->
 <audio id="bgMusic" loop preload="none">
   <source src="bgm.mp4" type="video/mp4">
 </audio>
 
-<!-- 🎵 音乐开关按钮 -->
-<button class="music-btn off" id="musicBtn" onclick="toggleMusic()" title="点我放音乐~">🎵</button>
+<!-- 🎵 音乐开关按钮（默认播放中） -->
+<button class="music-btn" id="musicBtn" onclick="toggleMusic()" title="点我关音乐~">🎶</button>
 
 <!-- 主卡片 -->
 <div class="main-card">
@@ -479,7 +479,8 @@
   const btnGroup = document.getElementById('btnGroup');
   const mainCard = document.querySelector('.main-card');
   let noClickCount = 0;
-  let buttonsPinned = false; // 两个按钮是否都已脱离 flex 流
+  let buttonsPinned = false;
+  let pinnedYesL, pinnedYesT, pinnedYesW, pinnedYesH; // 记录「我要！」位置
 
   // 逃跑俏皮话
   const teasingMessages = [
@@ -501,117 +502,89 @@
   function sayNo() {
     noClickCount++;
 
-    // === 第一次点击：两个按钮都脱离 flex 流，相对于主卡片绝对定位 ===
+    // === 第一次点击：把「我才不要」移入卡片内部，用卡片坐标 absolute 定位 ===
     if (!buttonsPinned) {
       const cardRect = mainCard.getBoundingClientRect();
 
-      // 固定「我要！」
+      // 记录「我要！」在卡片内的相对位置（不碰它）
       const yesRect = btnYes.getBoundingClientRect();
-      btnYes.style.position = 'absolute';
-      btnYes.style.left = (yesRect.left - cardRect.left) + 'px';
-      btnYes.style.top  = (yesRect.top  - cardRect.top)  + 'px';
-      btnYes.style.margin = '0';
+      pinnedYesL = yesRect.left - cardRect.left;
+      pinnedYesT = yesRect.top  - cardRect.top;
+      pinnedYesW = yesRect.width;
+      pinnedYesH = yesRect.height;
 
-      // 「我才不要」也立刻绝对定位（保持原位）
-      const noRect0 = btnNo.getBoundingClientRect();
+      // 「我才不要」改为卡片内 absolute 定位
+      const noRect = btnNo.getBoundingClientRect();
       btnNo.style.position = 'absolute';
-      btnNo.style.left = (noRect0.left - cardRect.left) + 'px';
-      btnNo.style.top  = (noRect0.top  - cardRect.top)  + 'px';
+      btnNo.style.left = (noRect.left - cardRect.left) + 'px';
+      btnNo.style.top  = (noRect.top  - cardRect.top)  + 'px';
       btnNo.style.margin = '0';
+      mainCard.appendChild(btnNo); // 移入卡片，坐标体系一致
 
       buttonsPinned = true;
     }
 
     btnNo.style.transition = 'all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)';
 
-    // 读取当前各元素在视口中的位置
-    const yesRect   = btnYes.getBoundingClientRect();
-    const noRect    = btnNo.getBoundingClientRect();
-    const cardRect  = mainCard.getBoundingClientRect();
+    // 全部使用卡片内部相对坐标，绝不跑出白色区域
+    const noW = btnNo.offsetWidth;
+    const noH = btnNo.offsetHeight;
+    const cardW = mainCard.clientWidth;
+    const cardH = mainCard.clientHeight;
+    const SAFE = 20;
+    const pad = 16;
 
-    const noW = noRect.width;
-    const noH = noRect.height;
-    const SAFE = 35; // 安全距离（像素）
-
-    // ✅ 可用范围：整个主卡片内部（远比 btnGroup 大，手机也够用）
-    const pad = 12;
-    const areaLeft   = cardRect.left + pad;
-    const areaRight  = cardRect.right  - noW - pad;
-    const areaTop    = cardRect.top  + pad;
-    const areaBottom = cardRect.bottom - noH - pad;
+    const areaLeft   = pad;
+    const areaRight  = cardW - noW - pad;
+    const areaTop    = pad;
+    const areaBottom = cardH - noH - pad;
 
     const rangeX = Math.max(0, areaRight - areaLeft);
     const rangeY = Math.max(0, areaBottom - areaTop);
 
+    // 「我要！」在卡片内的矩形
+    const yesRel = {
+      left: pinnedYesL, right: pinnedYesL + pinnedYesW,
+      top: pinnedYesT,  bottom: pinnedYesT + pinnedYesH
+    };
+
     let bestX = null, bestY = null;
 
-    // 尝试 500 次随机找位（空间大了，更容易找到）
-    for (let i = 0; i < 500; i++) {
+    // 随机尝试 800 次，不与「我要！」重合
+    for (let i = 0; i < 800; i++) {
       const cx = areaLeft + Math.random() * rangeX;
       const cy = areaTop  + Math.random() * rangeY;
-
-      const candidateRect = {
-        left: cx, right: cx + noW,
-        top: cy,  bottom: cy + noH
-      };
-
-      if (!rectsOverlap(candidateRect, yesRect, SAFE)) {
-        bestX = cx;
-        bestY = cy;
-        break;
+      if (!rectsOverlap({ left: cx, right: cx + noW, top: cy, bottom: cy + noH }, yesRel, SAFE)) {
+        bestX = cx; bestY = cy; break;
       }
     }
 
-    // 如果随机都没找到 → 四方向兜底
+    // 四方向兜底
     if (bestX === null) {
       const opts = [];
+      if (yesRel.top - noH - SAFE >= 0)
+        opts.push({ x: yesRel.left, y: yesRel.top - noH - SAFE });
+      if (yesRel.bottom + SAFE + noH <= cardH)
+        opts.push({ x: yesRel.left, y: yesRel.bottom + SAFE });
+      if (yesRel.left - noW - SAFE >= 0)
+        opts.push({ x: yesRel.left - noW - SAFE, y: yesRel.top });
+      if (yesRel.right + SAFE + noW <= cardW)
+        opts.push({ x: yesRel.right + SAFE, y: yesRel.top });
+      opts.push({ x: pad, y: pad });
+      opts.push({ x: cardW - noW - pad, y: cardH - noH - pad });
 
-      // 上
-      if (yesRect.top - noH - SAFE >= cardRect.top) {
-        opts.push({ x: yesRect.left, y: yesRect.top - noH - SAFE });
-      }
-      // 下
-      if (yesRect.bottom + SAFE + noH <= cardRect.bottom) {
-        opts.push({ x: yesRect.left, y: yesRect.bottom + SAFE });
-      }
-      // 左
-      if (yesRect.left - noW - SAFE >= cardRect.left) {
-        opts.push({ x: yesRect.left - noW - SAFE, y: yesRect.top });
-      }
-      // 右
-      if (yesRect.right + SAFE + noW <= cardRect.right) {
-        opts.push({ x: yesRect.right + SAFE, y: yesRect.top });
-      }
-      // 左上角
-      opts.push({ x: cardRect.left + pad, y: cardRect.top + pad });
-      // 右下角
-      opts.push({ x: cardRect.right - noW - pad, y: cardRect.bottom - noH - pad });
-
-      // 选第一个不与 yes 重叠的
       for (const opt of opts) {
-        const cr = { left: opt.x, right: opt.x + noW, top: opt.y, bottom: opt.y + noH };
-        if (!rectsOverlap(cr, yesRect, SAFE)) {
-          bestX = opt.x;
-          bestY = opt.y;
-          break;
+        if (!rectsOverlap({ left: opt.x, right: opt.x + noW, top: opt.y, bottom: opt.y + noH }, yesRel, SAFE)) {
+          bestX = opt.x; bestY = opt.y; break;
         }
       }
-
-      // 绝对兜底
-      if (bestX === null) {
-        bestX = cardRect.left + pad;
-        bestY = cardRect.top + pad;
-      }
+      if (bestX === null) { bestX = pad; bestY = pad; }
     }
 
-    // 转为相对于主卡片的坐标
-    const deltaX = bestX - cardRect.left;
-    const deltaY = bestY - cardRect.top;
+    btnNo.style.left = bestX + 'px';
+    btnNo.style.top  = bestY + 'px';
 
-    btnNo.style.left = deltaX + 'px';
-    btnNo.style.top  = deltaY + 'px';
-
-    // 显示俏皮话提示
+    // 俏皮话
     if (noClickCount <= 3) {
       showToast(teasingMessages[noClickCount - 1]);
     } else if (noClickCount <= 8) {
@@ -620,7 +593,6 @@
       showToast('好啦好啦，快按那个粉色的吧~ 🥺💕');
     }
   }
-
   // ====== Toast 提示 ======
   function showToast(msg) {
     // 移除旧 toast
@@ -668,7 +640,7 @@
   // ====== 🎵 音乐控制 ======
   const bgMusic = document.getElementById('bgMusic');
   const musicBtn = document.getElementById('musicBtn');
-  let musicOn = false;
+  let musicOn = true; // 默认播放中
 
   function toggleMusic() {
     if (musicOn) {
@@ -676,24 +648,35 @@
       musicBtn.textContent = '🎵';
       musicBtn.classList.add('off');
     } else {
-      bgMusic.play().catch(() => {}); // 浏览器可能拦截
+      bgMusic.play().catch(() => {});
       musicBtn.textContent = '🎶';
       musicBtn.classList.remove('off');
     }
     musicOn = !musicOn;
   }
 
-  // 首次用户点击页面任意位置时尝试自动播放（绕过浏览器 autoplay 限制）
-  let autoPlayTried = false;
-  document.addEventListener('click', function tryAutoPlay() {
-    if (autoPlayTried) return;
-    autoPlayTried = true;
-    bgMusic.play().then(() => {
-      musicOn = true;
-      musicBtn.textContent = '🎶';
-      musicBtn.classList.remove('off');
-    }).catch(() => {});
-  }, { once: true });
+  // 🎵 页面渲染完成后自动播放（延迟加载，避免48MB音频阻塞页面渲染）
+  window.addEventListener('load', function() {
+    setTimeout(function() {
+      bgMusic.play().then(function() {
+        musicOn = true;
+        musicBtn.textContent = '🎶';
+        musicBtn.classList.remove('off');
+      }).catch(function() {
+        // 浏览器拦截自动播放 → 首次点击时再试
+        musicOn = false;
+        musicBtn.textContent = '🎵';
+        musicBtn.classList.add('off');
+        document.addEventListener('click', function resumeOnClick() {
+          bgMusic.play().then(function() {
+            musicOn = true;
+            musicBtn.textContent = '🎶';
+            musicBtn.classList.remove('off');
+          }).catch(function() {});
+        }, { once: true });
+      });
+    }, 300);
+  });
 </script>
 
 </body>
