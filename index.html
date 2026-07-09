@@ -246,6 +246,32 @@
     display: none;
   }
 
+  /* 弹窗关闭 ✕ 按钮 */
+  .modal-close-x {
+    position: absolute;
+    top: 12px;
+    right: 16px;
+    width: 36px;
+    height: 36px;
+    border: none;
+    background: rgba(0,0,0,0.06);
+    border-radius: 50%;
+    font-size: 1.2em;
+    cursor: pointer;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    color: #aaa;
+    line-height: 1;
+  }
+  .modal-close-x:hover {
+    background: rgba(0,0,0,0.12);
+    color: #555;
+    transform: scale(1.1);
+  }
+
   /* 弹窗卡片 */
   .modal-card {
     background: #fff;
@@ -404,9 +430,11 @@
 <!-- 弹窗 -->
 <div class="modal-overlay hidden" id="modalOverlay">
   <div class="modal-card" id="modalCard">
+    <button class="modal-close-x" onclick="closeModal()" title="关闭">✕</button>
     <div class="modal-emoji">🐶</div>
     <div class="modal-text">真乖！我的小狗！💕</div>
     <button class="btn-close" onclick="closeModal()">贴贴~ ❤️</button>
+    <div style="color:#bbb; font-size:0.75em; margin-top:10px;">点击空白处或按 Esc 也可关闭</div>
   </div>
 </div>
 
@@ -471,6 +499,14 @@
   // 点击遮罩关闭
   document.getElementById('modalOverlay').addEventListener('click', function(e) {
     if (e.target === this) closeModal();
+  });
+
+  // 按 Esc 键关闭弹窗
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+      const overlay = document.getElementById('modalOverlay');
+      if (!overlay.classList.contains('hidden')) closeModal();
+    }
   });
 
   // ====== 点击"我才不要" → 随机逃跑 ======
